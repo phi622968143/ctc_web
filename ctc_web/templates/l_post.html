@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>休閒區</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background-color: #333;
+            color: #fff;
+            padding: 10px 0;
+            text-align: center;
+        }
+
+        h1 {
+            margin: 0;
+        }
+
+        main {
+            padding: 20px;
+            max-width: 800px;
+            margin: auto;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        form {
+            margin-bottom: 20px;
+        }
+
+        form input[type="text"], form textarea, form input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        form button {
+            padding: 10px 20px;
+            background-color: #333;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        form button:hover {
+            background-color: #555;
+        }
+
+        .post {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #fff;
+        }
+
+        .post h3 {
+            margin-top: 0;
+        }
+
+        .post img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 10px 0;
+        }
+
+        .comments {
+            margin-top: 10px;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+        }
+
+        .comments p {
+            margin: 5px 0;
+        }
+
+        footer {
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            padding: 10px 0;
+            position: fixed;
+            width: 100%;
+            bottom: 0;
+        }
+
+        .poll-options {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .poll-options button {
+            flex: 1 0 30%; /* 每个按钮占据30%的宽度 */
+            margin: 5px;
+        }
+
+        .icon-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #333;
+            font-size: 1.5em;
+            margin: 0 5px;
+        }
+
+        .icon-button:hover {
+            color: #555;
+        }
+    </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.emoji-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    const postId = this.closest('.reaction-form').dataset.postId;
+                    const emoji = this.dataset.emoji;
+                    const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+
+                    fetch('{% url "post_action" %}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: new URLSearchParams({
+                            'action_type': 'add_reaction',
+                            'post_id': postId,
+                            'emoji': emoji
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const countSpan = document.getElementById(`emoji-count-${postId}-${emoji}`);
+                            countSpan.textContent = data.count;
+                        }
+                    });
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+    <header>
+        <h1>休閒區</h1>
+    </header>
+    <main>
+        <h2>發文</h2>
+        <form action="{% url 'post_action' %}" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="action_type" value="create_post">
+            <textarea name="content" placeholder="內容"></textarea>
+            <input type="file" name="image">
+            <button type="submit">發表</button>
+        </form>
+
+        <h2>創建投票</h2>
+        <form action="{% url 'post_action' %}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action_type" value="create_poll">
+            <input type="text" name="question" placeholder="投票問題">
+            <input type="text" name="option1" placeholder="選項1">
+            <input type="text" name="option2" placeholder="選項2">
+            <button type="submit">創建投票</button>
+        </form>
+
+        <h2>最新投票</h2>
+        {% for poll in polls %}
+            <div class="poll">
+                <h3>{{ poll.question }}</h3>
+                <form action="{% url 'post_action' %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action_type" value="vote">
+                    <input type="hidden" name="poll_id" value="{{ poll.id }}">
+                    <div class="poll-options">
+                        {% for option in poll.options.all %}
+                            <button type="submit" name="option_id" value="{{ option.id }}">{{ option.text }} ({{ option.votes.count }})</button>
+                        {% endfor %}
+                    </div>
+                </form>
+                <form action="{% url 'post_action' %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action_type" value="delete_poll">
+                    <input type="hidden" name="poll_id" value="{{ poll.id }}">
+                    <button type="submit" class="icon-button"><i class="fas fa-trash-alt"></i></button>
+                </form>
+            </div>
+        {% endfor %}
+
+        <h2>文章列表</h2>
+        {% for post in posts %}
+            <div class="post">
+                <p>{{ post.content }}</p>
+                {% if post.image %}
+                    <img src="{{ post.image.url }}" alt="Post image">
+                {% endif %}
+                <p>作者: {{ post.author.name }} 發表於: {{ post.created_at }}</p>
+
+              
+                <h4>留言</h4>
+                <form action="{% url 'post_action' %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action_type" value="add_comment">
+                    <input type="hidden" name="post_id" value="{{ post.id }}">
+                    <textarea name="content" placeholder="留言"></textarea>
+                    <button type="submit">發表留言</button>
+                </form>
+
+                <div class="comments">
+                    {% for comment in post.comments.all %}
+                        <p>{{ comment.author.name }}: {{ comment.content }} ({{ comment.created_at }})</p>
+                    {% endfor %}
+                </div>
+
+                <form action="{% url 'post_action' %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action_type" value="delete_post">
+                    <input type="hidden" name="post_id" value="{{ post.id }}">
+                    <button type="submit" class="icon-button"><i class="fas fa-trash-alt"></i></button>
+                </form>
+            </div>
+        {% endfor %}
+    </main>
+</body>
+</html>
